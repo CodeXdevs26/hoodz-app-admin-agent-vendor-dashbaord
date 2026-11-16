@@ -13,6 +13,8 @@ export const LIVE_ORDER_EVENTS = [
   "job:on-the-way",
   "job:delivered",
   "job:rider-assigned",
+  "job:new-request",
+  "job:request-cancelled",
 ];
 
 /** Refetch order lists when the backend pushes a job or order change. */
@@ -28,4 +30,22 @@ export function useLiveOrderEvents(refetch) {
       LIVE_ORDER_EVENTS.forEach((event) => socket.off(event, onChange));
     };
   }, [socket, refetch]);
+
+  // SocketContextApi also re-broadcasts job lifecycle events as a window
+  // CustomEvent ("hoodz:job-event"). Refetch (debounced, so a burst of job
+  // events collapses into a single refresh) when one of those lands.
+  useEffect(() => {
+    if (typeof refetch !== "function") return;
+
+    let timer;
+    const onJobEvent = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => refetch(), 500);
+    };
+    window.addEventListener("hoodz:job-event", onJobEvent);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("hoodz:job-event", onJobEvent);
+    };
+  }, [refetch]);
 }

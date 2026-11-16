@@ -30,8 +30,6 @@ const nextConfig = {
   // Don't leak "X-Powered-By: Next.js" — trivial fingerprinting info for attackers.
   poweredByHeader: false,
 
-  ...(isDev ? { allowedDevOrigins: ["10.10.10.27"] } : {}),
-
   redirects: async () => [
     {
       source: "/",
