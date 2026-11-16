@@ -1,0 +1,119 @@
+"use client";
+
+import { useSocket } from "@/context/SocketContextApi";
+import { useGetVendorOrdersQuery } from "@/redux/api/orderApi";
+import { selectUser } from "@/redux/features/authSlice";
+import { useEffect, useRef, useState } from "react";
+import { useSelector } from "react-redux";
+
+const MUTE_KEY = "hoodz_order_alert_muted";
+
+function beep() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.value = 880;
+  gain.gain.value = 0.05;
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.25);
+  oscillator.onended = () => context.close();
+}
+
+/** Repeating sound and browser notification until a vendor accepts a new order. */
+export default function NewOrderAlert() {
+  const { socket } = useSocket();
+  const user = useSelector(selectUser);
+  const [pendingIds, setPendingIds] = useState([]);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(MUTE_KEY) === "1";
+    mutedRef.current = stored;
+    setMuted(stored);
+  }, []);
+
+  const { data: vendorOrdersData } = useGetVendorOrdersQuery(
+    { page: 1, limit: 100, searchText: "" },
+    { skip: user?.role !== "vendor" },
+  );
+
+  // Seed orders that were already pending when the page loaded or refreshed;
+  // the socket listener below only sees changes from this point on.
+  useEffect(() => {
+    const orders = vendorOrdersData?.data;
+    if (!Array.isArray(orders)) return;
+    const pending = orders
+      .filter((order) => order?.status === "pending")
+      .map((order) => String(order._id || order.id || ""))
+      .filter(Boolean);
+    if (pending.length === 0) return;
+    setPendingIds((current) => [...new Set([...current, ...pending])]);
+  }, [vendorOrdersData]);
+
+  useEffect(() => {
+    if (!socket || user?.role !== "vendor") return;
+
+    const onOrderUpdated = (payload) => {
+      const order = payload?.order || {};
+      const id = String(order._id || order.id || "");
+      const status = order.status;
+      const isNew = payload?.notice === "created" || status === "pending";
+
+      setPendingIds((current) => {
+        const next = new Set(current);
+        if (!id) return [...next];
+        if (isNew) next.add(id);
+        else next.delete(id);
+        return [...next];
+      });
+
+      if (!isNew) return;
+      if (!mutedRef.current) beep();
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("New Hoodz order", {
+          body: "A customer placed an order. Accept it from Orders.",
+        });
+      } else if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "default"
+      ) {
+        Notification.requestPermission();
+      }
+    };
+
+    socket.on("order:updated", onOrderUpdated);
+    return () => socket.off("order:updated", onOrderUpdated);
+  }, [socket, user?.role]);
+
+  useEffect(() => {
+    if (muted || pendingIds.length === 0 || user?.role !== "vendor") return;
+    const timer = window.setInterval(beep, 4000);
+    return () => window.clearInterval(timer);
+  }, [muted, pendingIds.length, user?.role]);
+
+  if (user?.role !== "vendor") return null;
+
+  const toggleMute = () => {
+    const next = !muted;
+    mutedRef.current = next;
+    setMuted(next);
+    window.localStorage.setItem(MUTE_KEY, next ? "1" : "0");
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggleMute}
+      className="fixed bottom-5 right-5 z-50 rounded-full bg-[#1B70A6] px-4 py-2 text-sm font-medium text-white shadow-lg"
+    >
+      {pendingIds.length > 0 ? `${pendingIds.length} new order` : "Order alert"} ·{" "}
+      {muted ? "Muted" : "Sound on"}
+    </button>
+  );
+}

@@ -44,17 +44,15 @@ const DELIVERY_STEPS = [
   { key: "assigned", title: "Assigned / Accepted" },
   { key: "picked_up", title: "Picked Up" },
   { key: "on_the_way", title: "On The Way" },
-  { key: "otp_sent", title: "OTP Sent" },
   { key: "delivered", title: "Delivered" },
 ];
 
 function getDeliveryCurrentStep(order) {
   const status = order?.status;
-  if (status === "delivered") return 4;
+  if (status === "delivered") return 3;
   if (status === "on_the_way") return 2;
   if (status === "picked_up") return 1;
   if (["rider_assigned", "processing", "confirmed"].includes(status)) return 0;
-  if (order?.isOtpVerified) return 3;
   return 0;
 }
 
@@ -198,10 +196,10 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-slate-800">
-                ${order.totalAmount}
+                EGP {order.totalAmount}
               </p>
               <p className="text-xs text-slate-500">
-                Items ${order.amount} + Delivery ${order.deliveryCharge}
+                Items EGP {order.amount} + Delivery EGP {order.deliveryCharge}
               </p>
             </div>
           </div>
@@ -283,10 +281,10 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">${item.totalPrice}</p>
+                    <p className="font-semibold">EGP {item.totalPrice}</p>
                     {item.product?.discountPrice < item.product?.price && (
                       <p className="text-xs text-slate-400 line-through">
-                        ${item.product.price}
+                        EGP {item.product.price}
                       </p>
                     )}
                   </div>
@@ -348,26 +346,19 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Subtotal">
-                ${order.amount}
+                EGP {order.amount}
               </Descriptions.Item>
               <Descriptions.Item label="Delivery Charge">
-                ${order.deliveryCharge}
+                EGP {order.deliveryCharge}
               </Descriptions.Item>
               <Descriptions.Item label="Coin Discount">
-                ${order.coinDiscount || 0}
+                EGP {order.coinDiscount || 0}
               </Descriptions.Item>
               <Descriptions.Item label="Voucher Discount">
-                ${order.voucherDiscount || 0}
+                EGP {order.voucherDiscount || 0}
               </Descriptions.Item>
               <Descriptions.Item label="Total">
-                ${order.totalAmount}
-              </Descriptions.Item>
-              <Descriptions.Item label="OTP Verified">
-                {order.isOtpVerified ? (
-                  <Tag color="green">Yes</Tag>
-                ) : (
-                  <Tag>No</Tag>
-                )}
+                EGP {order.totalAmount}
               </Descriptions.Item>
               <Descriptions.Item label="Created">
                 {formatDate(order.createdAt)}

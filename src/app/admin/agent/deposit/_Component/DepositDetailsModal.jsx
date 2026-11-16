@@ -112,7 +112,7 @@ export default function DepositDetailsModal({ open, setOpen, depositId }) {
             <div>
               <p className="text-sm text-slate-500">Deposit Amount</p>
               <p className="text-2xl font-bold text-emerald-600">
-                ${item.amount}
+                EGP {item.amount}
               </p>
             </div>
             <Tag
@@ -148,7 +148,7 @@ export default function DepositDetailsModal({ open, setOpen, depositId }) {
             <Descriptions.Item label="Fawry Ref">
               <span className="font-mono">{item.fawryRefNo || "—"}</span>
             </Descriptions.Item>
-            <Descriptions.Item label="Amount">${item.amount}</Descriptions.Item>
+            <Descriptions.Item label="Amount">EGP {item.amount}</Descriptions.Item>
             <Descriptions.Item label="Created">
               {item.createdAt
                 ? dayjs(item.createdAt).format("DD MMM YYYY, hh:mm A")
@@ -219,11 +219,11 @@ export default function DepositDetailsModal({ open, setOpen, depositId }) {
                         <p>
                           Collected:{" "}
                           <span className="font-semibold">
-                            ${job.collectedMoney ?? 0}
+                            EGP {job.collectedMoney ?? 0}
                           </span>
                         </p>
                         <p className="text-emerald-600">
-                          Earning: ${job.earning ?? 0}
+                          Earning: EGP {job.earning ?? 0}
                         </p>
                       </div>
                     </div>

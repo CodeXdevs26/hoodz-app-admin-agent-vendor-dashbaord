@@ -13,6 +13,8 @@ import {
 import { Search, MapPin, Eye } from "lucide-react";
 import { useGetUnassignedOrdersQuery } from "@/redux/api/orderApi";
 import FindRiderModal from "./FindRiderModal";
+import LiveRiderMap from "@/components/orders/LiveRiderMap";
+import { useLiveOrderEvents } from "@/hooks/useLiveOrderEvents";
 import dayjs from "dayjs";
 
 const statusColors = {
@@ -27,12 +29,14 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
   const [page, setPage] = useState(1);
   const [findOpen, setFindOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [trackedOrderId, setTrackedOrderId] = useState(null);
 
   const { data, isLoading, isFetching, refetch } = useGetUnassignedOrdersQuery({
     page,
     limit,
     searchText,
   });
+  useLiveOrderEvents(refetch);
 
   const orders = data?.data || [];
 
@@ -116,24 +120,34 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
       width: 180,
       fixed: "right",
       render: (_, record) => (
-        <Button
-          type="primary"
-          size="small"
-          icon={<MapPin size={14} />}
-          onClick={() => {
-            setSelectedOrder(record);
-            setFindOpen(true);
-          }}
-          className="h-9"
-        >
-          Find Nearby Rider
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="small"
+            onClick={() => setTrackedOrderId(record._id || record.id)}
+            className="h-9"
+          >
+            Track
+          </Button>
+          <Button
+            type="primary"
+            size="small"
+            icon={<MapPin size={14} />}
+            onClick={() => {
+              setSelectedOrder(record);
+              setFindOpen(true);
+            }}
+            className="h-9"
+          >
+            Find Nearby Rider
+          </Button>
+        </div>
       ),
     },
   ];
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: "#1B70A6" } }}>
+      <LiveRiderMap orderId={trackedOrderId} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Unassigned Orders</h2>

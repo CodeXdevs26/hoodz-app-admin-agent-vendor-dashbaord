@@ -44,8 +44,16 @@ const OrderApi = baseApi.injectEndpoints({
     }),
 
     makeOrderProccess: build.mutation({
-      query: ({ id, status }) => ({
-        url: `/orders/${id}/processing`,
+      query: ({ id }) => ({
+        url: `/orders/${id}/preparing`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["Orders"],
+    }),
+
+    makeOrderOutForDelivery: build.mutation({
+      query: ({ id }) => ({
+        url: `/orders/${id}/out-for-delivery`,
         method: "PATCH",
       }),
       invalidatesTags: ["Orders"],
@@ -70,4 +78,5 @@ export const {
   useGetUnassignedOrdersQuery,
   useMakeOrderConfirmMutation,
   useMakeOrderProccessMutation,
+  useMakeOrderOutForDeliveryMutation,
 } = OrderApi;

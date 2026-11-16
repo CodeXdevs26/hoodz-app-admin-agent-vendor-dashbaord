@@ -72,7 +72,7 @@ export default function DepositContainer({ limit = 10 }) {
       title: "Amount",
       dataIndex: "amount",
       render: (v) => (
-        <span className="font-semibold text-emerald-600">${v}</span>
+        <span className="font-semibold text-emerald-600">EGP {v}</span>
       ),
     },
     {

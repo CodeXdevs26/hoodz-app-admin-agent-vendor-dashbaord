@@ -40,11 +40,10 @@ const formatDate = (d) => (d ? dayjs(d).format("DD MMM YYYY, hh:mm A") : "—");
 
 function getDeliveryCurrentStep(order) {
   const status = order?.status;
-  if (status === "delivered") return 4;
+  if (status === "delivered") return 3;
   if (status === "on_the_way") return 2;
   if (status === "picked_up") return 1;
   if (["rider_assigned", "processing", "confirmed"].includes(status)) return 0;
-  if (order?.isOtpVerified) return 3;
   return 0;
 }
 
@@ -149,7 +148,6 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
     { key: "assigned", title: t("orders.stepAssigned") },
     { key: "picked_up", title: t("orders.stepPickedUp") },
     { key: "on_the_way", title: t("orders.stepOnTheWay") },
-    { key: "otp_sent", title: t("orders.stepOtpSent") },
     { key: "delivered", title: t("orders.stepDelivered") },
   ];
 
@@ -215,10 +213,10 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-slate-800">
-                ${order.totalAmount}
+                EGP {order.totalAmount}
               </p>
               <p className="text-xs text-slate-500">
-                {t("orders.items")} ${order.amount} + {t("orders.delivery2")} ${order.deliveryCharge}
+                {t("orders.items")} EGP {order.amount} + {t("orders.delivery2")} EGP {order.deliveryCharge}
               </p>
             </div>
           </div>
@@ -300,10 +298,10 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">${item.totalPrice}</p>
+                    <p className="font-semibold">EGP {item.totalPrice}</p>
                     {item.product?.discountPrice < item.product?.price && (
                       <p className="text-xs text-slate-400 line-through">
-                        ${item.product.price}
+                        EGP {item.product.price}
                       </p>
                     )}
                   </div>
@@ -365,26 +363,19 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.subtotal")}>
-                ${order.amount}
+                EGP {order.amount}
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.deliveryCharge")}>
-                ${order.deliveryCharge}
+                EGP {order.deliveryCharge}
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.coinDiscount")}>
-                ${order.coinDiscount || 0}
+                EGP {order.coinDiscount || 0}
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.voucherDiscount")}>
-                ${order.voucherDiscount || 0}
+                EGP {order.voucherDiscount || 0}
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.total")}>
-                ${order.totalAmount}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("orders.otpVerified")}>
-                {order.isOtpVerified ? (
-                  <Tag color="green">{t("common.yes")}</Tag>
-                ) : (
-                  <Tag>{t("common.no")}</Tag>
-                )}
+                EGP {order.totalAmount}
               </Descriptions.Item>
               <Descriptions.Item label={t("orders.created")}>
                 {formatDate(order.createdAt)}

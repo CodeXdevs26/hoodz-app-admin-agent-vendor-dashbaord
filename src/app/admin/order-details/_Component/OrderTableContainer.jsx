@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Table,
   Input,
@@ -19,17 +19,16 @@ import dayjs from "dayjs";
 import CustomConfirm from "@/components/CustomConfirm/CustomConfirm";
 import toast from "react-hot-toast";
 import OrderDetailsModal from "./OrderDetailsModal";
-import { useSocket } from "@/context/SocketContextApi";
+import { useLiveOrderEvents } from "@/hooks/useLiveOrderEvents";
 
-const STATUS_FLOW = [
-  "pending",
-  "confirmed",
-  "processing",
-  "rider_assigned",
-  "picked_up",
-  "on_the_way",
-  "delivered",
-];
+const NEXT_STATUS = {
+  pending: "accepted",
+  confirmed: "preparing",
+  accepted: "preparing",
+  processing: "out_for_delivery",
+  preparing: "out_for_delivery",
+  rider_assigned: "out_for_delivery",
+};
 
 const statusColors = {
   pending: "orange",
@@ -42,18 +41,31 @@ const statusColors = {
   cancelled: "red",
 };
 
-const formatStatus = (status) => {
-  if (status === "processing") return "Prepared";
-  return status?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+const STATUS_LABELS = {
+  pending: "Pending",
+  accepted: "Accepted",
+  confirmed: "Accepted",
+  preparing: "Preparing",
+  processing: "Preparing",
+  out_for_delivery: "Out for delivery",
+  rider_assigned: "Rider assigned",
+  collected: "Collected",
+  picked_up: "Collected",
+  on_the_way: "On the way",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  rejected: "Rejected",
 };
+
+const formatStatus = (status) =>
+  STATUS_LABELS[status] ||
+  status?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function OrderTableContainer({ limit = 10 }) {
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
-
-  const { socket } = useSocket();
 
   const { data, isLoading, refetch } = useGetOrdersQuery({
     page: currentPage,
@@ -62,20 +74,7 @@ export default function OrderTableContainer({ limit = 10 }) {
   });
 
   const [orderStatus] = useOrderStatusMutation();
-
-  // 🔔 Realtime order update → refetch
-  useEffect(() => {
-    if (!socket) return;
-
-    const onOrderUpdated = () => {
-      refetch();
-    };
-
-    socket.on("order:updated", onOrderUpdated);
-    return () => {
-      socket.off("order:updated", onOrderUpdated);
-    };
-  }, [socket, refetch]);
+  useLiveOrderEvents(refetch);
 
   const handleStatusChange = async (id, status) => {
     try {
@@ -86,18 +85,11 @@ export default function OrderTableContainer({ limit = 10 }) {
     }
   };
 
-  const getNextStatus = (current) => {
-    if (current === "cancelled" || current === "delivered") return null;
-    const idx = STATUS_FLOW.indexOf(current);
-    if (idx === -1 || idx === STATUS_FLOW.length - 1) return null;
-    return STATUS_FLOW[idx + 1];
-  };
+  const getNextStatus = (current) => NEXT_STATUS[current] || null;
 
   const getStatusMenuItems = (record) => {
     const items = [];
-    const next = getNextStatus(
-      record.status === "Processing" ? "prepered" : record.status,
-    );
+    const next = getNextStatus(record.status);
 
     if (next) {
       items.push({
@@ -201,9 +193,9 @@ export default function OrderTableContainer({ limit = 10 }) {
       dataIndex: "totalAmount",
       render: (value, record) => (
         <div>
-          <p className="font-semibold">${value}</p>
+          <p className="font-semibold">EGP {value}</p>
           <p className="text-xs text-gray-400">
-            Delivery: ${record.deliveryCharge}
+            Delivery: EGP {record.deliveryCharge}
           </p>
         </div>
       ),

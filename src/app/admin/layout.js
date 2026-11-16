@@ -1,5 +1,6 @@
 "use client";
 
+import NewOrderAlert from "@/components/orders/NewOrderAlert";
 import HeaderContainer from "@/components/shared/HeaderContainer/HeaderContainer";
 import SidebarContainer from "@/components/shared/SidebarContainer/SidebarContainer";
 import { useMediaQuery } from "@react-hook/media-query";
@@ -67,6 +68,7 @@ export default function AdminLayout({ children }) {
         }}
       >
         <SidebarContainer collapsed={sidebarCollapsed}></SidebarContainer>
+        <NewOrderAlert />
 
         <Layout>
           <HeaderContainer

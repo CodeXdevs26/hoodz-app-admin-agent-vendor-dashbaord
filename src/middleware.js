@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { jwtDecode } from "jwt-decode";
 
 const AUTH_ROUTES = [
   "/login",
@@ -27,16 +26,41 @@ const ROLE_EXCLUSIVE_PREFIXES = {
 // lives outside /admin/agent).
 const SHARED_ROUTES = ["/admin/profile", "/admin/notification", "/admin/order-details"];
 
+function decodeBase64Url(value) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+  const binary = atob(padded + pad);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 /**
- * Decode the auth cookie to find the user's role. Returns null for a
- * missing, malformed, or expired token so callers can treat it the same
- * as "not logged in" — middleware only ever reads the token for routing
- * decisions, the API is still the source of truth for authorization.
+ * Verify the access token signature before trusting its role. A decoded but
+ * unsigned payload is not enough to choose which pages to render.
  */
-function getRoleFromToken(token) {
+async function getRoleFromToken(token) {
   if (!token) return null;
+  const secret = process.env.JWT_ACCESS_TOKEN_SECRET_KEY;
+  const [header, payload, signature] = token.split(".");
+  if (!header || !payload || !signature) return null;
+  if (!secret) return getRoleFromApi(token);
+
   try {
-    const decoded = jwtDecode(token);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      decodeBase64Url(signature),
+      new TextEncoder().encode(`${header}.${payload}`),
+    );
+    if (!valid) return null;
+
+    const decoded = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload)));
     if (decoded?.exp && Date.now() >= decoded.exp * 1000) return null;
     return decoded?.role || null;
   } catch {
@@ -44,7 +68,32 @@ function getRoleFromToken(token) {
   }
 }
 
-export function middleware(request) {
+/** Ask the API who this token belongs to when the signing secret is not configured here. */
+async function getRoleFromApi(token) {
+  const base = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!base) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const authorization = token.toLowerCase().startsWith("bearer ")
+      ? token
+      : `Bearer ${token}`;
+    const response = await fetch(`${base.replace(/\/$/, "")}/users/me`, {
+      headers: { Authorization: authorization },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    return body?.data?.role || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function middleware(request) {
   const { nextUrl } = request;
   const pathname = nextUrl.pathname;
 
@@ -52,7 +101,7 @@ export function middleware(request) {
   requestHeaders.set("x-pathname", pathname);
 
   const token = request.cookies.get("hoodz_Dahboard_token")?.value;
-  const role = getRoleFromToken(token);
+  const role = await getRoleFromToken(token);
   const isLoggedIn = Boolean(role);
 
   const isAuthRoute = AUTH_ROUTES.includes(pathname);

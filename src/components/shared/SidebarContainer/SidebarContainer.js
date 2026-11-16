@@ -10,7 +10,6 @@ import {
   CircleUser,
   Package,
   ShieldCheck,
-  Wallet,
   Tags,
   Image as ImageIcon,
   SlidersVertical,
@@ -82,11 +81,6 @@ const SidebarContainer = ({ collapsed }) => {
       key: "kyc-details",
       icon: <ShieldCheck size={20} strokeWidth={2} />,
       label: <Link href="/admin/rider-kyc">KYC Verification</Link>,
-    },
-    {
-      key: "wallet-transactions",
-      icon: <Wallet size={20} strokeWidth={2} />,
-      label: <Link href="/admin/wallet-transactions">Wallet Transactions</Link>,
     },
     {
       key: "vendor-payment",
@@ -190,11 +184,6 @@ const SidebarContainer = ({ collapsed }) => {
       key: "general-settings",
       icon: <Settings size={20} strokeWidth={2} />,
       label: <Link href="/admin/general-settings">General Settings</Link>,
-    },
-    {
-      key: "all-transaction",
-      icon: <ArrowLeftRight size={20} strokeWidth={2} />,
-      label: <Link href="/admin/all-transaction">All Transaction</Link>,
     },
     {
       key: "analytics",

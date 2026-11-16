@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Table,
   Input,
@@ -14,6 +14,7 @@ import { Search, Eye, MoreVertical, Filter } from "lucide-react";
 import {
   useGetVendorOrdersQuery,
   useMakeOrderConfirmMutation,
+  useMakeOrderOutForDeliveryMutation,
   useMakeOrderProccessMutation,
   useOrderStatusMutation,
 } from "@/redux/api/orderApi";
@@ -21,8 +22,8 @@ import dayjs from "dayjs";
 import CustomConfirm from "@/components/CustomConfirm/CustomConfirm";
 import toast from "react-hot-toast";
 import OrderDetailsModal from "./OrderDetailsModal";
-import { useSocket } from "@/context/SocketContextApi";
 import { useLanguage } from "@/context/LanguageContext";
+import { useLiveOrderEvents } from "@/hooks/useLiveOrderEvents";
 import TableSkeleton from "@/components/Skeletons/TableSkeleton";
 
 export default function OrderTableContainer({ limit = 10 }) {
@@ -31,8 +32,6 @@ export default function OrderTableContainer({ limit = 10 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
-
-  const { socket } = useSocket();
 
   const { data, isLoading, refetch } = useGetVendorOrdersQuery({
     page: currentPage,
@@ -44,45 +43,44 @@ export default function OrderTableContainer({ limit = 10 }) {
     useMakeOrderConfirmMutation();
   const [makeProcess, { isLoading: processing }] =
     useMakeOrderProccessMutation();
+  const [makeReady, { isLoading: markingReady }] =
+    useMakeOrderOutForDeliveryMutation();
   const [orderStatus] = useOrderStatusMutation();
+  useLiveOrderEvents(refetch);
 
   const statusColors = {
     pending: "orange",
+    accepted: "blue",
     confirmed: "blue",
+    preparing: "cyan",
     processing: "cyan",
+    out_for_delivery: "purple",
     rider_assigned: "purple",
+    collected: "geekblue",
     picked_up: "geekblue",
     on_the_way: "gold",
     delivered: "green",
     cancelled: "red",
+    rejected: "red",
   };
 
   const statusLabels = {
     pending: t("orders.statusPending"),
-    confirmed: t("orders.statusConfirmed"),
-    processing: t("orders.statusProcessing"),
+    accepted: t("orders.statusAccepted"),
+    confirmed: t("orders.statusAccepted"),
+    preparing: t("orders.statusPreparing"),
+    processing: t("orders.statusPreparing"),
+    out_for_delivery: t("orders.statusOutForDelivery"),
     rider_assigned: t("orders.statusRiderAssigned"),
-    picked_up: t("orders.statusPickedUp"),
+    collected: t("orders.statusCollected"),
+    picked_up: t("orders.statusCollected"),
     on_the_way: t("orders.statusOnTheWay"),
     delivered: t("orders.statusDelivered"),
     cancelled: t("orders.statusCancelled"),
+    rejected: t("orders.statusRejected"),
   };
 
   const formatStatus = (status) => statusLabels[status] || status;
-
-  // 🔔 Realtime: order update → refetch list
-  useEffect(() => {
-    if (!socket) return;
-
-    const onOrderUpdated = () => {
-      refetch();
-    };
-
-    socket.on("order:updated", onOrderUpdated);
-    return () => {
-      socket.off("order:updated", onOrderUpdated);
-    };
-  }, [socket, refetch]);
 
   const handleConfirm = async (id) => {
     try {
@@ -102,6 +100,15 @@ export default function OrderTableContainer({ limit = 10 }) {
     }
   };
 
+  const handleReady = async (id) => {
+    try {
+      const res = await makeReady({ id }).unwrap();
+      toast.success(res?.message || t("orders.orderOutForDelivery"));
+    } catch (error) {
+      toast.error(error?.data?.message || t("orders.orderOutForDeliveryFailed"));
+    }
+  };
+
   const handleCancel = async (id) => {
     try {
       const res = await orderStatus({ id, status: "cancelled" }).unwrap();
@@ -117,29 +124,48 @@ export default function OrderTableContainer({ limit = 10 }) {
 
     if (status === "pending") {
       items.push({
-        key: "confirmed",
+        key: "accepted",
         label: (
           <CustomConfirm
             title={t("orders.confirmOrderTitle")}
             description={t("orders.confirmOrderDesc")}
             onConfirm={() => handleConfirm(id)}
           >
-            <span className="block w-full">{t("orders.markAsConfirmed")}</span>
+            <span className="block w-full">{t("orders.markAsAccepted")}</span>
           </CustomConfirm>
         ),
       });
     }
 
-    if (status === "confirmed") {
+    if (status === "accepted" || status === "confirmed") {
       items.push({
-        key: "processing",
+        key: "preparing",
         label: (
           <CustomConfirm
             title={t("orders.processOrderTitle")}
             description={t("orders.processOrderDesc")}
             onConfirm={() => handleProcess(id)}
           >
-            <span className="block w-full">{t("orders.markAsProcessing")}</span>
+            <span className="block w-full">{t("orders.markAsPreparing")}</span>
+          </CustomConfirm>
+        ),
+      });
+    }
+
+    if (
+      status === "preparing" ||
+      status === "processing" ||
+      status === "rider_assigned"
+    ) {
+      items.push({
+        key: "out_for_delivery",
+        label: (
+          <CustomConfirm
+            title={t("orders.readyOrderTitle")}
+            description={t("orders.readyOrderDesc")}
+            onConfirm={() => handleReady(id)}
+          >
+            <span className="block w-full">{t("orders.markAsOutForDelivery")}</span>
           </CustomConfirm>
         ),
       });
@@ -242,9 +268,9 @@ export default function OrderTableContainer({ limit = 10 }) {
       dataIndex: "totalAmount",
       render: (value, record) => (
         <div>
-          <p className="font-semibold">${value}</p>
+          <p className="font-semibold">EGP {value}</p>
           <p className="text-xs text-gray-400">
-            {t("orders.delivery")}: ${record.deliveryCharge}
+            {t("orders.delivery")}: EGP {record.deliveryCharge}
           </p>
         </div>
       ),
@@ -354,7 +380,7 @@ export default function OrderTableContainer({ limit = 10 }) {
         <Table
           columns={columns}
           dataSource={tableData}
-          loading={isLoading || confirming || processing}
+          loading={isLoading || confirming || processing || markingReady}
           scroll={{ x: "max-content" }}
           pagination={{
             current: currentPage,

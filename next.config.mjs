@@ -8,14 +8,17 @@ const apiOrigin = process.env.NEXT_PUBLIC_BASE_URL
   ? new URL(process.env.NEXT_PUBLIC_BASE_URL).origin
   : "";
 
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com"
+  : "script-src 'self' 'unsafe-inline' https://maps.googleapis.com";
+
 const csp = [
   "default-src 'self'",
-  // Next.js needs 'unsafe-inline'/'unsafe-eval' for its own runtime chunks in dev;
-  // keep this tight in production if you introduce a nonce-based setup later.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  `img-src 'self' data: blob: https:`,
+  "img-src 'self' data: blob: https://hoodz.fra1.digitaloceanspaces.com https://fra1.digitaloceanspaces.com https://maps.gstatic.com https://maps.googleapis.com",
   `connect-src 'self' https: wss: ${apiOrigin}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -27,7 +30,7 @@ const nextConfig = {
   // Don't leak "X-Powered-By: Next.js" — trivial fingerprinting info for attackers.
   poweredByHeader: false,
 
-  allowedDevOrigins: ["10.10.10.27"],
+  ...(isDev ? { allowedDevOrigins: ["10.10.10.27"] } : {}),
 
   redirects: async () => [
     {
@@ -41,11 +44,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        // TODO: narrow this to your actual image/CDN host(s) once known
-        // (e.g. your S3/Cloudfront/Cloudinary domain). A wildcard hostname
-        // lets the Next.js image optimizer be used as an open image proxy
-        // for arbitrary remote URLs, which is an SSRF / abuse risk.
-        hostname: "**",
+        hostname: "hoodz.fra1.digitaloceanspaces.com",
+      },
+      {
+        protocol: "https",
+        hostname: "fra1.digitaloceanspaces.com",
       },
     ],
   },
