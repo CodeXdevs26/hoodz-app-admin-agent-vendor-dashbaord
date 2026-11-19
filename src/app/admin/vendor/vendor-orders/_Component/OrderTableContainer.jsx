@@ -16,8 +16,14 @@ import {
   useMakeOrderConfirmMutation,
   useMakeOrderOutForDeliveryMutation,
   useMakeOrderProccessMutation,
-  useOrderStatusMutation,
 } from "@/redux/api/orderApi";
+import {
+  matchStatus,
+  statusColor,
+  statusFilters,
+  statusLabel,
+  vendorNextAction,
+} from "@/utils/orderStatus";
 import dayjs from "dayjs";
 import CustomConfirm from "@/components/CustomConfirm/CustomConfirm";
 import toast from "react-hot-toast";
@@ -45,42 +51,7 @@ export default function OrderTableContainer({ limit = 10 }) {
     useMakeOrderProccessMutation();
   const [makeReady, { isLoading: markingReady }] =
     useMakeOrderOutForDeliveryMutation();
-  const [orderStatus] = useOrderStatusMutation();
   useLiveOrderEvents(refetch);
-
-  const statusColors = {
-    pending: "orange",
-    accepted: "blue",
-    confirmed: "blue",
-    preparing: "cyan",
-    processing: "cyan",
-    out_for_delivery: "purple",
-    rider_assigned: "purple",
-    collected: "geekblue",
-    picked_up: "geekblue",
-    on_the_way: "gold",
-    delivered: "green",
-    cancelled: "red",
-    rejected: "red",
-  };
-
-  const statusLabels = {
-    pending: t("orders.statusPending"),
-    accepted: t("orders.statusAccepted"),
-    confirmed: t("orders.statusAccepted"),
-    preparing: t("orders.statusPreparing"),
-    processing: t("orders.statusPreparing"),
-    out_for_delivery: t("orders.statusOutForDelivery"),
-    rider_assigned: t("orders.statusRiderAssigned"),
-    collected: t("orders.statusCollected"),
-    picked_up: t("orders.statusCollected"),
-    on_the_way: t("orders.statusOnTheWay"),
-    delivered: t("orders.statusDelivered"),
-    cancelled: t("orders.statusCancelled"),
-    rejected: t("orders.statusRejected"),
-  };
-
-  const formatStatus = (status) => statusLabels[status] || status;
 
   const handleConfirm = async (id) => {
     try {
@@ -109,20 +80,15 @@ export default function OrderTableContainer({ limit = 10 }) {
     }
   };
 
-  const handleCancel = async (id) => {
-    try {
-      const res = await orderStatus({ id, status: "cancelled" }).unwrap();
-      toast.success(res?.message || t("orders.orderCancelled"));
-    } catch (error) {
-      toast.error(error?.data?.message || t("orders.orderCancelFailed"));
-    }
-  };
-
+  // Vendor drives: pending → accepted → preparing (starts rider matching)
+  // → out_for_delivery. Rider steps come over sockets. Cancel/reject belongs
+  // to admin/agent (PATCH /orders/:id/status), so vendors get no cancel here.
   const getStatusMenuItems = (record) => {
     const items = [];
     const { status, id } = record;
+    const next = vendorNextAction(status);
 
-    if (status === "pending") {
+    if (next === "accept") {
       items.push({
         key: "accepted",
         label: (
@@ -137,7 +103,7 @@ export default function OrderTableContainer({ limit = 10 }) {
       });
     }
 
-    if (status === "accepted" || status === "confirmed") {
+    if (next === "preparing") {
       items.push({
         key: "preparing",
         label: (
@@ -152,11 +118,7 @@ export default function OrderTableContainer({ limit = 10 }) {
       });
     }
 
-    if (
-      status === "preparing" ||
-      status === "processing" ||
-      status === "rider_assigned"
-    ) {
+    if (next === "out_for_delivery") {
       items.push({
         key: "out_for_delivery",
         label: (
@@ -166,24 +128,6 @@ export default function OrderTableContainer({ limit = 10 }) {
             onConfirm={() => handleReady(id)}
           >
             <span className="block w-full">{t("orders.markAsOutForDelivery")}</span>
-          </CustomConfirm>
-        ),
-      });
-    }
-
-    if (status !== "delivered" && status !== "cancelled") {
-      items.push({
-        key: "cancelled",
-        danger: true,
-        label: (
-          <CustomConfirm
-            title={t("orders.cancelOrderTitle")}
-            description={t("orders.cancelOrderDesc")}
-            onConfirm={() => handleCancel(id)}
-          >
-            <span className="block w-full text-red-500">
-              {t("orders.cancelOrder")}
-            </span>
           </CustomConfirm>
         ),
       });
@@ -287,24 +231,13 @@ export default function OrderTableContainer({ limit = 10 }) {
     {
       title: t("orders.status"),
       dataIndex: "status",
-      filters: [
-        { text: t("orders.statusPending"), value: "pending" },
-        { text: t("orders.statusConfirmed"), value: "confirmed" },
-        { text: t("orders.statusProcessing"), value: "processing" },
-        { text: t("orders.statusRiderAssigned"), value: "rider_assigned" },
-        { text: t("orders.statusPickedUp"), value: "picked_up" },
-        { text: t("orders.statusOnTheWay"), value: "on_the_way" },
-        { text: t("orders.statusDelivered"), value: "delivered" },
-        { text: t("orders.statusCancelled"), value: "cancelled" },
-      ],
+      filters: statusFilters(t),
       filterIcon: (filtered) => (
         <Filter size={16} color={filtered ? "#1B70A6" : "#000"} />
       ),
-      onFilter: (value, record) => record.status === value,
+      onFilter: matchStatus,
       render: (value) => (
-        <Tag color={statusColors[value] || "default"}>
-          {formatStatus(value)}
-        </Tag>
+        <Tag color={statusColor(value)}>{statusLabel(value, t)}</Tag>
       ),
     },
     {

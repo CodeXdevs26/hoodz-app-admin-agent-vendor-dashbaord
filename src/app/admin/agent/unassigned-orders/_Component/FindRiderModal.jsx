@@ -14,6 +14,11 @@ import {
 import { MapPin, UserPlus, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSocket } from "@/context/SocketContextApi";
+import { canAssignRider, statusColor, statusLabel } from "@/utils/orderStatus";
+
+// Without a timeout, a lost ack (server never replies, or the socket dropped
+// while the emit was buffered) leaves the spinner running forever.
+const ACK_TIMEOUT_MS = 15000;
 
 export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
   const { socket } = useSocket();
@@ -21,6 +26,7 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
   const [riders, setRiders] = useState([]);
   const [searching, setSearching] = useState(false);
   const [assigningId, setAssigningId] = useState(null);
+  const assignAllowed = canAssignRider(order?.status);
 
   // reset when modal opens
   useEffect(() => {
@@ -33,7 +39,7 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
   }, [open, order?._id]);
 
   const handleFind = () => {
-    if (!socket) {
+    if (!socket?.connected) {
       toast.error("Socket not connected");
       return;
     }
@@ -45,16 +51,16 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
     setSearching(true);
     setRiders([]);
 
-    socket.emit(
+    socket.timeout(ACK_TIMEOUT_MS).emit(
       "rider:find-online",
       {
         orderId: order._id,
         radiusKm: Number(radiusKm) || 10,
       },
-      (ack) => {
+      (err, ack) => {
         setSearching(false);
 
-        if (!ack) {
+        if (err || !ack) {
           toast.error("No response from server");
           return;
         }
@@ -77,20 +83,28 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
   };
 
   const handleAssign = (riderId) => {
-    if (!socket || !order?._id || !riderId) return;
+    if (!order?._id || !riderId) return;
+    if (!socket?.connected) {
+      toast.error("Socket not connected");
+      return;
+    }
+    if (!assignAllowed) {
+      toast.error("Assign a rider only after the order is Preparing");
+      return;
+    }
 
     setAssigningId(riderId);
 
-    socket.emit(
+    socket.timeout(ACK_TIMEOUT_MS).emit(
       "job:assign",
       {
         orderId: order._id,
         riderId,
       },
-      (ack) => {
+      (err, ack) => {
         setAssigningId(null);
 
-        if (!ack) {
+        if (err || !ack) {
           toast.error("No response from server");
           return;
         }
@@ -128,7 +142,9 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
             <span className="font-mono font-semibold text-[#1B70A6]">
               {order.id}
             </span>
-            <Tag className="capitalize">{order.status}</Tag>
+            <Tag color={statusColor(order.status)}>
+              {statusLabel(order.status)}
+            </Tag>
           </div>
           <p className="mt-1 text-slate-600">
             Total:{" "}
@@ -140,6 +156,13 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
             {" · "}
             <span className="capitalize">{order.deliveryType}</span>
           </p>
+        </div>
+      )}
+
+      {!assignAllowed && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          This order is not Preparing yet. Rider matching starts at Preparing,
+          so assign a rider after the order reaches that step.
         </div>
       )}
 
@@ -219,7 +242,10 @@ export default function FindRiderModal({ open, setOpen, order, onAssigned }) {
                   type="primary"
                   icon={<UserPlus size={14} />}
                   loading={assigningId === rider._id}
-                  disabled={!!assigningId && assigningId !== rider._id}
+                  disabled={
+                    !assignAllowed ||
+                    (!!assigningId && assigningId !== rider._id)
+                  }
                   onClick={() => handleAssign(rider._id)}
                 >
                   Assign

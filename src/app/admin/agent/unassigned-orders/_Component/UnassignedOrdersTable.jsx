@@ -11,18 +11,17 @@ import {
   ConfigProvider,
 } from "antd";
 import { Search, MapPin, Eye } from "lucide-react";
-import { useGetUnassignedOrdersQuery } from "@/redux/api/orderApi";
+import {
+  useGetUnassignedOrdersQuery,
+  useOrderStatusMutation,
+} from "@/redux/api/orderApi";
 import FindRiderModal from "./FindRiderModal";
 import LiveRiderMap from "@/components/orders/LiveRiderMap";
 import { useLiveOrderEvents } from "@/hooks/useLiveOrderEvents";
+import CustomConfirm from "@/components/CustomConfirm/CustomConfirm";
+import toast from "react-hot-toast";
 import dayjs from "dayjs";
-
-const statusColors = {
-  pending: "orange",
-  confirmed: "blue",
-  processing: "cyan",
-  cancelled: "red",
-};
+import { isActiveStatus, statusColor, statusLabel } from "@/utils/orderStatus";
 
 export default function UnassignedOrdersContainer({ limit = 10 }) {
   const [searchText, setSearchText] = useState("");
@@ -37,6 +36,24 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
     searchText,
   });
   useLiveOrderEvents(refetch);
+  const [orderStatus, { isLoading: updatingStatus }] = useOrderStatusMutation();
+
+  // Agent (like admin) can cancel or reject from any active step via
+  // PATCH /orders/:id/status; the backend also closes any open delivery job.
+  const handleStatusChange = async (record, status) => {
+    try {
+      const res = await orderStatus({
+        id: record._id || record.id,
+        status,
+      }).unwrap();
+      toast.success(
+        res?.message ||
+          (status === "rejected" ? "Order rejected" : "Order cancelled"),
+      );
+    } catch (error) {
+      toast.error(error?.data?.message || "Failed to update status");
+    }
+  };
 
   const orders = data?.data || [];
 
@@ -99,11 +116,7 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
     {
       title: "Status",
       dataIndex: "status",
-      render: (v) => (
-        <Tag color={statusColors[v] || "default"} className="capitalize">
-          {v}
-        </Tag>
-      ),
+      render: (v) => <Tag color={statusColor(v)}>{statusLabel(v)}</Tag>,
     },
     {
       title: "Type",
@@ -117,10 +130,10 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
     },
     {
       title: "Action",
-      width: 180,
+      width: 320,
       fixed: "right",
       render: (_, record) => (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="small"
             onClick={() => setTrackedOrderId(record._id || record.id)}
@@ -140,6 +153,38 @@ export default function UnassignedOrdersContainer({ limit = 10 }) {
           >
             Find Nearby Rider
           </Button>
+          {isActiveStatus(record.status) && (
+            <>
+              <CustomConfirm
+                title="Reject Order"
+                description="Are you sure you want to reject this order?"
+                onConfirm={() => handleStatusChange(record, "rejected")}
+              >
+                <Button
+                  size="small"
+                  danger
+                  className="h-9"
+                  disabled={updatingStatus}
+                >
+                  Reject
+                </Button>
+              </CustomConfirm>
+              <CustomConfirm
+                title="Cancel Order"
+                description="Are you sure you want to cancel this order?"
+                onConfirm={() => handleStatusChange(record, "cancelled")}
+              >
+                <Button
+                  size="small"
+                  danger
+                  className="h-9"
+                  disabled={updatingStatus}
+                >
+                  Cancel
+                </Button>
+              </CustomConfirm>
+            </>
+          )}
         </div>
       ),
     },

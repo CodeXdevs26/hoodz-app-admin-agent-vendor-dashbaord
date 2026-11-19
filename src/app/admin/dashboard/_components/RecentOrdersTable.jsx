@@ -1,13 +1,7 @@
 "use client";
 
 import { Table, Tag, Button } from "antd";
-
-const statusColor = {
-  delivered: "green",
-  rider_assigned: "blue",
-  pending: "orange",
-  processing: "processing",
-};
+import { statusColor, statusLabel } from "@/utils/orderStatus";
 
 export default function RecentOrdersTable({ orders }) {
   const columns = [
@@ -38,9 +32,7 @@ export default function RecentOrdersTable({ orders }) {
       dataIndex: "status",
       key: "status",
       render: (status) => (
-        <Tag color={statusColor[status] || "default"}>
-          {status?.replace("_", " ")}
-        </Tag>
+        <Tag color={statusColor(status)}>{statusLabel(status)}</Tag>
       ),
     },
   ];

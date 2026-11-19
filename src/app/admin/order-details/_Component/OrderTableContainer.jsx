@@ -20,46 +20,13 @@ import CustomConfirm from "@/components/CustomConfirm/CustomConfirm";
 import toast from "react-hot-toast";
 import OrderDetailsModal from "./OrderDetailsModal";
 import { useLiveOrderEvents } from "@/hooks/useLiveOrderEvents";
-
-const NEXT_STATUS = {
-  pending: "accepted",
-  confirmed: "preparing",
-  accepted: "preparing",
-  processing: "out_for_delivery",
-  preparing: "out_for_delivery",
-  rider_assigned: "out_for_delivery",
-};
-
-const statusColors = {
-  pending: "orange",
-  confirmed: "blue",
-  processing: "cyan",
-  rider_assigned: "purple",
-  picked_up: "geekblue",
-  on_the_way: "gold",
-  delivered: "green",
-  cancelled: "red",
-};
-
-const STATUS_LABELS = {
-  pending: "Pending",
-  accepted: "Accepted",
-  confirmed: "Accepted",
-  preparing: "Preparing",
-  processing: "Preparing",
-  out_for_delivery: "Out for delivery",
-  rider_assigned: "Rider assigned",
-  collected: "Collected",
-  picked_up: "Collected",
-  on_the_way: "On the way",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  rejected: "Rejected",
-};
-
-const formatStatus = (status) =>
-  STATUS_LABELS[status] ||
-  status?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+import {
+  isActiveStatus,
+  matchStatus,
+  statusColor,
+  statusFilters,
+  statusLabel,
+} from "@/utils/orderStatus";
 
 export default function OrderTableContainer({ limit = 10 }) {
   const [searchText, setSearchText] = useState("");
@@ -79,34 +46,37 @@ export default function OrderTableContainer({ limit = 10 }) {
   const handleStatusChange = async (id, status) => {
     try {
       const res = await orderStatus({ id, status }).unwrap();
-      toast.success(res?.message || "Order status updated");
+      toast.success(
+        res?.message ||
+          (status === "rejected" ? "Order rejected" : "Order cancelled"),
+      );
     } catch (error) {
       toast.error(error?.data?.message || "Failed to update status");
     }
   };
 
-  const getNextStatus = (current) => NEXT_STATUS[current] || null;
-
+  // Admin/agent do not move the vendor steps (accept → preparing → ready) or
+  // the rider steps. Those come from the vendor endpoints and rider sockets,
+  // and setting "preparing" through /status would skip rider matching.
+  // From any active step, admin/agent can only reject or cancel. The backend
+  // also closes any open delivery job when that happens.
   const getStatusMenuItems = (record) => {
     const items = [];
-    const next = getNextStatus(record.status);
 
-    if (next) {
+    if (isActiveStatus(record.status)) {
       items.push({
-        key: next,
+        key: "rejected",
+        danger: true,
         label: (
           <CustomConfirm
-            title="Update Status"
-            description={`Change status to "${formatStatus(next)}"?`}
-            onConfirm={() => handleStatusChange(record.id, next)}
+            title="Reject Order"
+            description="Are you sure you want to reject this order?"
+            onConfirm={() => handleStatusChange(record.id, "rejected")}
           >
-            <span className="block w-full">Mark as {formatStatus(next)}</span>
+            <span className="block w-full text-red-500">Reject Order</span>
           </CustomConfirm>
         ),
       });
-    }
-
-    if (record.status !== "delivered" && record.status !== "cancelled") {
       items.push({
         key: "cancelled",
         danger: true,
@@ -212,24 +182,13 @@ export default function OrderTableContainer({ limit = 10 }) {
     {
       title: "Status",
       dataIndex: "status",
-      filters: [
-        { text: "Pending", value: "pending" },
-        { text: "Confirmed", value: "confirmed" },
-        { text: "Prepared", value: "processing" },
-        { text: "Rider Assigned", value: "rider_assigned" },
-        { text: "Picked Up", value: "picked_up" },
-        { text: "On The Way", value: "on_the_way" },
-        { text: "Delivered", value: "delivered" },
-        { text: "Cancelled", value: "cancelled" },
-      ],
+      filters: statusFilters(),
       filterIcon: (filtered) => (
         <Filter size={16} color={filtered ? "#1B70A6" : "#000"} />
       ),
-      onFilter: (value, record) => record.status === value,
+      onFilter: matchStatus,
       render: (value) => (
-        <Tag color={statusColors[value] || "default"}>
-          {formatStatus(value === "processing" ? "Prepared" : value)}
-        </Tag>
+        <Tag color={statusColor(value)}>{statusLabel(value)}</Tag>
       ),
     },
     {

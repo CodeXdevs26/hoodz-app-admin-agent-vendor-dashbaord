@@ -21,40 +21,23 @@ import {
   Polyline,
 } from "@react-google-maps/api";
 
+import { deliveryStep, statusColor, statusLabel } from "@/utils/orderStatus";
+
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-const statusColors = {
-  pending: "orange",
-  confirmed: "blue",
-  processing: "cyan",
-  rider_assigned: "purple",
-  picked_up: "geekblue",
-  on_the_way: "gold",
-  delivered: "green",
-  cancelled: "red",
-};
-
-const formatStatus = (s) =>
-  s?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "N/A";
+const formatStatus = (s) => statusLabel(s);
 
 const formatDate = (d) => (d ? dayjs(d).format("DD MMM YYYY, hh:mm A") : "—");
 
 // Delivery job steps (as you specified)
 const DELIVERY_STEPS = [
   { key: "assigned", title: "Assigned / Accepted" },
-  { key: "picked_up", title: "Picked Up" },
+  { key: "collected", title: "Collected" },
   { key: "on_the_way", title: "On The Way" },
   { key: "delivered", title: "Delivered" },
 ];
 
-function getDeliveryCurrentStep(order) {
-  const status = order?.status;
-  if (status === "delivered") return 3;
-  if (status === "on_the_way") return 2;
-  if (status === "picked_up") return 1;
-  if (["rider_assigned", "processing", "confirmed"].includes(status)) return 0;
-  return 0;
-}
+const getDeliveryCurrentStep = (order) => deliveryStep(order?.status);
 
 // Order timeline steps
 const ORDER_TIMELINE = [
@@ -184,7 +167,7 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4">
             <div className="flex flex-wrap gap-2">
               <Tag
-                color={statusColors[order.status] || "default"}
+                color={statusColor(order.status)}
                 className="!text-sm"
               >
                 {formatStatus(order.status)}

@@ -22,30 +22,13 @@ import {
   Polyline,
 } from "@react-google-maps/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { deliveryStep, statusColor, statusLabel } from "@/utils/orderStatus";
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-const statusColors = {
-  pending: "orange",
-  confirmed: "blue",
-  processing: "cyan",
-  rider_assigned: "purple",
-  picked_up: "geekblue",
-  on_the_way: "gold",
-  delivered: "green",
-  cancelled: "red",
-};
-
 const formatDate = (d) => (d ? dayjs(d).format("DD MMM YYYY, hh:mm A") : "—");
 
-function getDeliveryCurrentStep(order) {
-  const status = order?.status;
-  if (status === "delivered") return 3;
-  if (status === "on_the_way") return 2;
-  if (status === "picked_up") return 1;
-  if (["rider_assigned", "processing", "confirmed"].includes(status)) return 0;
-  return 0;
-}
+const getDeliveryCurrentStep = (order) => deliveryStep(order?.status);
 
 function MapSection({ pickup, destination }) {
   const { isLoaded } = useJsApiLoader({
@@ -131,17 +114,7 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
 
   const order = data?.data;
 
-  const statusLabels = {
-    pending: t("orders.statusPending"),
-    confirmed: t("orders.statusConfirmed"),
-    processing: t("orders.statusProcessing"),
-    rider_assigned: t("orders.statusRiderAssigned"),
-    picked_up: t("orders.statusPickedUp"),
-    on_the_way: t("orders.statusOnTheWay"),
-    delivered: t("orders.statusDelivered"),
-    cancelled: t("orders.statusCancelled"),
-  };
-  const formatStatus = (s) => statusLabels[s] || s || t("common.na");
+  const formatStatus = (s) => (s ? statusLabel(s, t) : t("common.na"));
 
   // Delivery job steps
   const DELIVERY_STEPS = [
@@ -201,7 +174,7 @@ export default function OrderDetailsModal({ open, setOpen, orderId }) {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4">
             <div className="flex flex-wrap gap-2">
               <Tag
-                color={statusColors[order.status] || "default"}
+                color={statusColor(order.status)}
                 className="!text-sm"
               >
                 {formatStatus(order.status)}

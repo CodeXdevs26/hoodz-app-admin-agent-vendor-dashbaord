@@ -1,5 +1,5 @@
 import localFont from "next/font/local";
-import { DM_Sans, Montserrat } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
 import Providers from "../lib/Providers";
 import ReduxProviders from "@/redux/lib/ReduxProvider";
